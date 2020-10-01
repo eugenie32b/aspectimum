@@ -14,7 +14,7 @@ Demo folder contains three projects:
    he/she can run the Aspectimum    to weave advices to the destination project (Demo/Aop/Aspectimum.Demo.Lib) 
    on source code level.
    
-   See workflow diagram at https://raw.githubusercontent.com/eugenie32b/aspectimum/master/demo/doc/demo_project_dev_flow.png
+   See workflow diagram at https://raw.githubusercontent.com/eugenie32b/aspectimum/master/Demo/Doc/demo_project_dev_flow.png
    
 Templates folder contains definitions of advices as templates in T4 format, that would produce source code 
 that would be weaved into original source code of a program.
