@@ -1,0 +1,15 @@
+﻿<#@ include file="AopCommon.ttinclude" #>
+<#@ parameter name="MethodNode" type="Microsoft.CodeAnalysis.CSharp.Syntax.PropertyDeclarationSyntax" #>
+<#@ template language="C#" #>
+
+public string qqqprop() 
+{ 
+get {
+	return "test234 <#= MethodNode.Identifier #><#= q1() #> <#= q2() #>"; 
+	}
+	
+}
+
+<#+ 
+	public string q2() { return "testq2";}
+#>

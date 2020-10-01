@@ -1,0 +1,136 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<#
+	var syntaxNode = FieldsInjection(SyntaxNode);
+	syntaxNode = VariablesInjection(syntaxNode);
+	syntaxNode = PropertiesInjection(syntaxNode);	
+
+	if(syntaxNode == SyntaxNode)
+		return null;
+#>
+
+<#= syntaxNode.ToFullString() #>
+
+<#+
+	private SyntaxNode VariablesInjection(SyntaxNode syntaxNode)
+	{
+		return RewriteNodes<LocalDeclarationStatementSyntax >(syntaxNode, OnLocalVariablesInjection);	
+	
+		SyntaxNode OnLocalVariablesInjection(LocalDeclarationStatementSyntax node)
+		{
+			var errorMsgs = new System.Text.StringBuilder();
+
+			SyntaxNode syntaxNode = RewriteNodes<VariableDeclaratorSyntax>(node, (n) => OnVariableDeclaratorVisit(n, node.Declaration.Type, errorMsgs));
+
+			if(errorMsgs.Length > 0)
+				return AddErrorMessageTrivia(syntaxNode, errorMsgs.ToString());
+
+			return syntaxNode;
+		}
+	}
+
+	private SyntaxNode PropertiesInjection(SyntaxNode syntaxNode)
+	{
+		return RewriteNodes<PropertyDeclarationSyntax>(syntaxNode, OnPropertyInjection);	
+	
+		SyntaxNode OnPropertyInjection(PropertyDeclarationSyntax node)
+		{
+			if(node.Initializer?.Value?.ToString() != "inject")
+				return node;
+
+			var errorMsgs = new System.Text.StringBuilder();
+
+			SyntaxNode syntaxNode = DoInjection(node, node.Identifier.ToString().Trim(), node.Initializer.Value, node.Type, errorMsgs);
+
+			if(errorMsgs.Length > 0)
+				return AddErrorMessageTrivia(syntaxNode, errorMsgs.ToString());
+
+			return syntaxNode;
+		}
+	}
+
+	private SyntaxNode FieldsInjection(SyntaxNode syntaxNode)
+	{
+		return RewriteNodes<BaseFieldDeclarationSyntax>(syntaxNode, OnFieldsInjection);	
+	
+		SyntaxNode OnFieldsInjection(BaseFieldDeclarationSyntax node)
+		{
+			var errorMsgs = new System.Text.StringBuilder();
+
+			SyntaxNode syntaxNode = RewriteNodes<VariableDeclaratorSyntax>(node, (n) => OnVariableDeclaratorVisit(n, node.Declaration.Type, errorMsgs));
+
+			if(errorMsgs.Length > 0)
+				return AddErrorMessageTrivia(syntaxNode, errorMsgs.ToString());
+
+			return syntaxNode;
+		}
+	}
+
+	private SyntaxNode OnVariableDeclaratorVisit(VariableDeclaratorSyntax node, TypeSyntax typeSyntax, System.Text.StringBuilder errorMsgs)
+	{
+		if(node.Initializer?.Value?.ToString() != "inject")
+			return node;
+
+		return DoInjection(node, node.Identifier.ToString().Trim(), node.Initializer.Value, typeSyntax, errorMsgs);
+	}
+
+	private SyntaxNode DoInjection(SyntaxNode node, string varName, ExpressionSyntax initializerNode, TypeSyntax typeSyntax, System.Text.StringBuilder errorMsgs)
+	{		
+		string varType = typeSyntax.ToString().Trim();
+
+		Log($"{varName} {varType} {initializerNode.ToString()}");
+
+		if(varName.StartsWith("config"))
+		{
+			string configName = Regex.Replace(Regex.Replace(varName, "^config", ""), "([a-z])([A-Z])", (m) => m.Groups[1].Value + "_" + m.Groups[2].Value).ToLower();
+			ExpressionSyntax configNode = CreateElementAccess("_configuration", CreateStringLiteral(configName));
+
+			if(varType == "int")
+			{
+				configNode = CreateMemberAccessInvocation("Int32", "Parse", configNode);
+			}
+
+			return node.ReplaceNode(initializerNode, configNode);
+		}
+
+		switch(varType)
+		{
+			case "Microsoft.Extensions.Configuration.IConfigurationRoot":
+			case "IConfigurationRoot":
+				EnsureUsing("Microsoft.Extensions.Configuration");
+
+				ExpressionSyntax pathCombineArg = CreateMemberAccessInvocation("System.IO.Path", "Combine", CreateMemberAccess("AppContext", "BaseDirectory"));
+
+				ExpressionSyntax builderNode = CreateNewType("ConfigurationBuilder").WithTrailingTrivia(SyntaxFactory.EndOfLine("\r\n"));
+				builderNode  = CreateMemberAccessInvocation(builderNode, "SetBasePath", pathCombineArg).WithTrailingTrivia(SyntaxFactory.EndOfLine("\r\n"));
+
+				ExpressionSyntax addJsonFileArg = CreateMemberAccessInvocation("System.IO.Path", "Combine", CreateMemberAccess("AppContext", "BaseDirectory"));
+
+				builderNode  = CreateMemberAccessInvocationNamedArgs(builderNode, "AddJsonFile", 
+																		(null, CreateStringLiteral("appsettings.json")), 
+																		("optional",  SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression))).WithTrailingTrivia(SyntaxFactory.EndOfLine("\r\n"));
+
+				if(GetGlobalSetting("env")?.ToLower() == "test")
+				{
+					builderNode  = CreateMemberAccessInvocationNamedArgs(builderNode, "AddJsonFile", 
+																			(null, CreateStringLiteral("appsettings.test.json")), 
+																			("optional",  SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)));
+				}
+
+				builderNode  = CreateMemberAccessInvocation(builderNode, "Build");
+
+				return node.ReplaceNode(initializerNode, builderNode);
+				
+			case "IDataService":
+			{
+				string className = (GetGlobalSetting("env")?.ToLower() == "test" ? "MockDataService" : "DataService");
+
+				return node.ReplaceNode(initializerNode, CreateNewType(className));
+			}
+		}
+
+		errorMsgs.AppendLine($"Cannot find injection rule for {varType} {varName}");
+
+		return node;
+	}
+
+#>

@@ -1,0 +1,11 @@
+﻿<#@ include file="AopCommon.ttinclude" #>
+<#@ template language="C#" #>
+
+public string qqq() 
+{ 
+	return "test123 <#= MethodNode.Identifier #><#= q1() #> <#= q2() #>"; 
+}
+
+<#+ 
+	public string q2() { return "testq2";}
+#>

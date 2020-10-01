@@ -1,0 +1,19 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<#
+	// the class already implements INotifyPropertyChanged, nothing to do here
+	if(ImplementsBaseType(ClassNode, "INotifyPropertyChanged", "System.ComponentModel.INotifyPropertyChanged"))
+		return null;
+
+	var classNode = AddBaseTypes<ClassDeclarationSyntax>(ClassNode, "System.ComponentModel.INotifyPropertyChanged"); 
+#>
+
+<#= ClassStart(classNode) #>
+            public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+
+            protected void NotifyPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string propertyName = "")
+            {
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
+            }
+
+<#= ClassBody(classNode) #>
+<#= ClassEnd(classNode) #>

@@ -1,0 +1,1 @@
+﻿// ##aspect="TestTypeScript" extra data here

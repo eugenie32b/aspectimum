@@ -1,0 +1,119 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<#
+
+	Dictionary<string, string> options = ExtraTagAsDictionary();
+	_resources = LoadResources(options["ResourceFile"]);
+	_resourceClass = options["ResourceClass"];
+
+	var syntaxNode = RewriteLeafStatementNodes(SyntaxNode, OnStatementNodeVisit);	
+#>
+
+<#= syntaxNode.ToFullString() #>
+
+<#+ 
+	private SyntaxNode OnStatementNodeVisit(StatementSyntax node)
+	{
+		if(!node.DescendantNodes().OfType<InvocationExpressionSyntax>().Any(w => (w.Expression is IdentifierNameSyntax) && ((IdentifierNameSyntax)w.Expression).Identifier.ToString() == "i18"  ))
+			return node;
+
+		var errorMsgs = new System.Text.StringBuilder();
+
+		SyntaxNode syntaxNode = RewriteNodes<InvocationExpressionSyntax>(node, (n) => OnInvocationExpressionVisit(n, errorMsgs));
+
+		if(errorMsgs.Length > 0)
+			return AddErrorMessageTrivia(syntaxNode, errorMsgs.ToString());
+
+		return syntaxNode;
+	}
+
+    private SyntaxNode OnInvocationExpressionVisit(InvocationExpressionSyntax node, System.Text.StringBuilder errorMsgs)
+	{
+		if(!(node.Expression is IdentifierNameSyntax && ((IdentifierNameSyntax)node.Expression).Identifier.ToString() == "i18"  ))
+			return node;
+
+		ArgumentSyntax arg = node.ArgumentList.Arguments.Single(); // We know that i18 method accepts only one argument. Keep in mind that it is just a demo and in real life you could be more inventive
+		
+		var expr = arg.Expression;
+		if(!(expr is LiteralExpressionSyntax || expr is InterpolatedStringExpressionSyntax))
+		{
+			errorMsgs.AppendLine($"Argument for i18 method must be either string literal or interpolated string, but instead got {arg.Expression.GetType().ToString()}");
+
+			return node;
+		}
+		
+		string s = expr.ToString();
+		if(s.StartsWith("$"))
+		{
+			(string format, List<ExpressionSyntax> expressions) = ConvertInterpolatedStringToFormat((InterpolatedStringExpressionSyntax)expr);
+
+			ExpressionSyntax stringNode = ReplaceStringWithResource("\"" + format + "\"", errorMsgs);
+			if(stringNode != null)
+			{
+				var memberAccess = CreateMemberAccess("String", "Format");
+			
+				var arguments = new List<ArgumentSyntax>();
+	
+				arguments.Add(SyntaxFactory.Argument(stringNode));
+				expressions.ForEach(item => arguments.Add(SyntaxFactory.Argument(item)));
+
+				var argumentList = SyntaxFactory.SeparatedList(arguments);
+
+				return SyntaxFactory.InvocationExpression(memberAccess, SyntaxFactory.ArgumentList(argumentList));
+			}
+		}
+		else
+		{
+			SyntaxNode stringNode = ReplaceStringWithResource(s, errorMsgs);
+			if(stringNode != null)
+				return stringNode;
+		}
+
+		return node;
+	}
+
+	private ExpressionSyntax ReplaceStringWithResource(string s, System.Text.StringBuilder errorMsgs)
+	{
+		Match m = System.Text.RegularExpressions.Regex.Match(s, "^\"(\\s*)(.*?)(\\s*)\"$");
+		if(!m.Success)
+		{
+			errorMsgs.AppendLine($"String doesn't match search criteria");
+
+			return null;
+		}
+
+		if(!_resources.TryGetValue(m.Groups[2].Value, out string resourceName))
+		{
+
+			errorMsgs.AppendLine($"Cannot find resource for a string {s}, please add it to resources");
+			return null;
+		}
+
+		string csharpName = Regex.Replace(resourceName, "[^A-Za-z0-9]", "_");
+
+		ExpressionSyntax stringNode = CreateMemberAccess(_resourceClass, csharpName);
+
+		if(!String.IsNullOrEmpty(m.Groups[1].Value) || !String.IsNullOrEmpty(m.Groups[3].Value))
+		{
+			if(!String.IsNullOrEmpty(m.Groups[1].Value))
+			{
+				stringNode = SyntaxFactory.BinaryExpression(SyntaxKind.AddExpression, 
+																CreateStringLiteral(m.Groups[1].Value), 
+																stringNode);
+			}
+
+			if(!String.IsNullOrEmpty(m.Groups[3].Value))
+			{
+				stringNode = SyntaxFactory.BinaryExpression(SyntaxKind.AddExpression, 
+															stringNode, 
+															CreateStringLiteral(m.Groups[3].Value));
+			}
+
+			stringNode = SyntaxFactory.ParenthesizedExpression(stringNode);
+		}
+
+		return stringNode;
+	}	
+
+	private string _resourceClass;
+	private Dictionary<string,string> _resources;
+#>

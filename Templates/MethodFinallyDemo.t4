@@ -1,0 +1,13 @@
+<#@ include file="AopCsharp.ttinclude" #>
+
+<#= MethodStart() #>
+try
+{
+<#= MethodBody() #>
+} 
+finally 
+{
+	// whatever logic you need to include for a method
+}
+
+<#= MethodEnd() #>

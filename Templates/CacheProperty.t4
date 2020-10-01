@@ -1,0 +1,110 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<#
+	// The template accepts a configuration value from extraTag in two ways
+	// 1. as a number of minutes to use for expiration (example: 8)
+	// 2. as a string in JSON in format { CacheKey: "name_of_cache_key", CacheKeyVariable: "name_of_variable", ExpiresInMinutes: 10, ExpiresVariable: "name_of_variable" }
+	//
+	//    CacheKey (optional) name of the cache key, the name will be used as a literal string (example: my_key)
+	//    CacheKeyVariable (optional) name of variable that holds the cache key (example: GlobalConsts.MyKeyName)
+	//
+	//    ExpiresInMinutes (optional) number minutes that the cache value will expires (example: 12)
+	//    ExpiresVariable (optional) name of a variable that the expiration value will be get from (example: AppConfig.EXPIRE_CACHE)
+	//
+	// if any of expiration values are not specified, 5 minutes default expiration will be used
+
+	if(!PropertyHasAnyGetBlock())
+		return null;
+
+	const int DEFAULT_EXPIRES_IN_MINUTES = 5;
+
+	string propertyName = PropertyNode.Identifier.ToFullString().Trim();
+	string propertyType = PropertyNode.Type.ToFullString().Trim();
+	string expiresInMinutes = DEFAULT_EXPIRES_IN_MINUTES.ToString();
+	string cacheKey = "\"" + ClassNode.Identifier.ToFullString() + ":" + propertyName + "\"";
+
+	if(!String.IsNullOrEmpty(ExtraTag))
+	{
+		if(Int32.TryParse(ExtraTag, out int exp))
+		{
+			expiresInMinutes = exp.ToString();
+		}
+		else
+		{
+			JsonDocument json = ExtraTagAsJson();
+			if(json != null && json.RootElement.ValueKind  == JsonValueKind.Object)
+			{
+				if(json.RootElement.TryGetProperty("CacheKey", out JsonElement cacheKeyElement))
+				{
+					string s = cacheKeyElement.GetString();
+					if(!String.IsNullOrEmpty(s))
+						cacheKey = "\"" + s + "\"";
+				}
+				else if(json.RootElement.TryGetProperty("CacheKeyVariable", out JsonElement cacheVariableElement))
+				{
+					string s = cacheVariableElement.GetString();
+					if(!String.IsNullOrEmpty(s))
+						cacheKey = s;
+				}
+
+				if(json.RootElement.TryGetProperty("ExpiresInMinutes", out JsonElement expiresInMinutesElement))
+				{
+					if(expiresInMinutesElement.TryGetInt32(out int v) && v > 0)
+						expiresInMinutes = "" + v;
+				} 
+				else if(json.RootElement.TryGetProperty("ExpiresVariable", out JsonElement expiresVariableElement))
+				{				
+					string s = expiresVariableElement.GetString();
+					if(!String.IsNullOrEmpty(s))
+						expiresInMinutes = s;
+				}
+			}
+		}
+	}
+
+#>
+
+
+<#= PropertyDefinition() #>
+	{
+		get 
+		{ 
+			System.Runtime.Caching.ObjectCache cache = System.Runtime.Caching.MemoryCache.Default;			
+
+			<#= propertyType #> cachedData = cache[<#= cacheKey #>] as <#= propertyType #>;
+			if(cachedData == null)
+			{
+				cachedData = GetPropertyData();
+				if(cachedData != null)
+				{					
+					cache.Set(<#= cacheKey #>, cachedData, System.DateTimeOffset.Now.AddMinutes(<#= expiresInMinutes #>)); 
+				}
+			}
+
+			return cachedData;
+
+			<#= propertyType #> GetPropertyData()
+			{
+				<# if(PropertyNode.ExpressionBody != null ) { #>
+				return (<#= PropertyNode.ExpressionBody.Expression.ToFullString() #>);
+				<# } else if(PropertyNode?.AccessorList?.Accessors.FirstOrDefault(w => w.ExpressionBody != null && w.Keyword.ToString() == "get") != null) { #>
+				return (<#= PropertyNode?.AccessorList?.Accessors.FirstOrDefault(w => w.ExpressionBody != null && w.Keyword.ToString() == "get").ExpressionBody.Expression.ToFullString() #>);
+				<# } else { #>
+				<#= PropertyGetBlock() #>
+				<# } #>
+			}
+       }
+
+		<#
+		
+		if(PropertyHasAnySetBlock()) { #>
+		set 
+		{
+			System.Runtime.Caching.ObjectCache cache = System.Runtime.Caching.MemoryCache.Default;  
+
+			cache.Remove(<#= cacheKey #>); // invalidate cache for the property		
+			
+			<#= PropertySetBlock() #>			
+		}
+		<# } #>
+
+	}

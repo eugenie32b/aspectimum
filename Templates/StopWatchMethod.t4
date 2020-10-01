@@ -1,0 +1,18 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<# EnsureUsing("System.Diagnostics"); #>
+<#= MethodStart() #>
+
+var stopwatch = Stopwatch.StartNew(); 
+
+try
+{
+<#= MethodBody() #>
+} 
+finally
+{
+	stopwatch.Stop();
+	Console.Out.WriteLine($"Method <#= MethodName #>: {stopwatch.ElapsedMilliseconds}");
+
+}
+
+<#= MethodEnd() #>

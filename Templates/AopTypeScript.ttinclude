@@ -1,0 +1,18 @@
+﻿<#@ assembly name="System.CodeDom.dll" #>
+
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text.RegularExpressions" #>
+
+<#@ template language="C#" #>
+
+<#@ parameter name="FileName" type="System.String" #>
+<#@ parameter name="FileSha256" type="System.String" #>
+<#@ parameter name="User" type="System.String" #>
+<#@ parameter name="MachineName" type="System.String" #>
+<#@ parameter name="Now" type="System.String" #>
+
+<#@ parameter name="ExtraTag" type="System.String" #>
+<#@ parameter name="GlobalTag" type="System.Collections.Generic.Dictionary<string, string>" #>
+
+<#@ parameter name="Source" type="System.String" #>
+

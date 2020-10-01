@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<config>
+  
+  <aspects>
+    <aspect name="NotifyPropertyChange">
+      <filters>
+        <filter type="Properties" pattern=".*Second.*" action="Ignore" />
+      </filters>
+
+      <advice template_name="NotifyPropertyChanged" action="Properties"/>
+      <advice template_name="NotifyPropertyChangedClass" action="Classes"/>
+    </aspect>
+    
+    <aspect name="logging">
+      <advice template_name="CatchExceptionMethod" action="Methods" />
+    </aspect>
+    
+  </aspects>
+</config>

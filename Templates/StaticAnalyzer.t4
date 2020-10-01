@@ -1,0 +1,66 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<#
+	var syntaxNode = AnalyzeLocalVariables(SyntaxNode);
+	syntaxNode = AnalyzeStringFormat(syntaxNode);	
+
+	if(syntaxNode == SyntaxNode)
+		return null;
+#>
+
+<#= syntaxNode.ToFullString() #>
+
+<#+
+
+	private SyntaxNode AnalyzeLocalVariables(SyntaxNode syntaxNode)
+	{
+		return RewriteNodes<LocalDeclarationStatementSyntax>(syntaxNode, OnAnalyzeLocalVariablesNodeVisit);	
+	
+		SyntaxNode OnAnalyzeLocalVariablesNodeVisit(LocalDeclarationStatementSyntax node)
+		{
+			var errorMsgs = new System.Text.StringBuilder();
+			
+			string d = "";
+			foreach(VariableDeclaratorSyntax variableNode in node.DescendantNodes().OfType<VariableDeclaratorSyntax>().Where(w => Regex.IsMatch(w.Identifier.ToString(), "^[A-Z]")))
+			{
+				LogDebug($"variable: {variableNode.Identifier.ToString()}");
+
+				errorMsgs.Append(d + $"variable \"{variableNode.Identifier.ToString()}\" doesn't match code standard rules");
+				d = ", ";
+			}
+
+			if(errorMsgs.Length > 0)
+				return AddErrorMessageTrivia(node, errorMsgs.ToString());
+
+			return node;
+		}
+	}
+
+
+	private SyntaxNode AnalyzeStringFormat(SyntaxNode syntaxNode)
+	{
+		return RewriteLeafStatementNodes(syntaxNode, OnAnalyzeStringFormat);	
+	
+		SyntaxNode OnAnalyzeStringFormat(StatementSyntax node)
+		{
+			bool hasStringFormat = false;
+
+			foreach(MemberAccessExpressionSyntax memberAccessNode in node.DescendantNodes().OfType<MemberAccessExpressionSyntax>())
+			{
+				if(memberAccessNode.Name.ToString().Trim() != "Format")
+					continue;
+
+				string expr = memberAccessNode.Expression.ToString().Trim().ToLower();
+				if(expr != "string" && expr != "system.string")
+					continue;
+
+				hasStringFormat = true;
+				break;
+			}
+
+			if(hasStringFormat)
+				return AddWarningMessageTrivia(node, "Please replace String.Format with string interpolation format.");
+
+			return node;
+		}
+	}
+#>

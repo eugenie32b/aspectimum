@@ -1,0 +1,15 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<# EnsureUsing("System"); #>
+<#= MethodStart() #>
+try
+{
+<#= MethodBody() #>
+} 
+catch(Exception logExpn)
+{
+	Console.Error.WriteLine($"Exception in <#= MethodName #>\r\n{logExpn.Message}\r\n{logExpn.StackTrace}");
+
+	throw;
+}
+
+<#= MethodEnd() #>

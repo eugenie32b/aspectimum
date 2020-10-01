@@ -1,0 +1,22 @@
+<#@ include file="AopCsharp.ttinclude" #>
+<#
+ 	if(!(PropertyHasEmptyGetBlock() && PropertyHasEmptySetBlock()))
+		return null;
+
+	string privateUnqiueName = GetUniquePrivatePropertyName(ClassNode, PropertyNode.Identifier.ToString());
+#>
+
+	private <#= PropertyNode.Type.ToFullString() #> <#= privateUnqiueName #><#= PropertyNode.Initializer != null ? " = " + PropertyNode.Initializer.ToFullString() : "" #>;
+
+<#= PropertyNode.AttributeLists.ToFullString() + PropertyNode.Modifiers.ToFullString() + PropertyNode.Type.ToFullString() + PropertyNode.Identifier.ToFullString() #>
+	{
+		get { return <#= privateUnqiueName #>; }
+		set 
+		{
+			if(<#= privateUnqiueName #> != value)
+			{
+				<#= privateUnqiueName #> = value;
+				NotifyPropertyChanged();
+			}
+		}
+	}

@@ -1,0 +1,6 @@
+<#@ include file="AopCsharp.ttinclude" #>
+
+
+// second demo <#= ExtraTag #>
+
+<#= StatementBody() #>
